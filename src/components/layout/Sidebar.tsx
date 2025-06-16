@@ -94,7 +94,7 @@ export const Sidebar: React.FC = () => {
                 to="/moderator/chat"
                 className={`flex items-center px-3 py-2 rounded-md ${isActive("/moderator/chat") ? "bg-blue-50 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`}
               >
-                <Shield size={20} className="mr-3" />
+                <MessageCircle size={20} className="mr-3" />
                 <span>Модерация чатов</span>
               </Link>
             )}
