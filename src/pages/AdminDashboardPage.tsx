@@ -9,22 +9,21 @@ import { getAdminStats } from "../lib/supabase"
 
 export const AdminDashboardPage = () => {
   const { user } = useAuthStore()
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [stats, setStats] = useState({
     users: 0,
     courses: 0,
     messages: 0,
     pendingMessages: 0,
   })
-  const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [shouldNavigate, setShouldNavigate] = useState(false)
+
+  // Проверяем права доступа
+  if (!user || user.role !== "admin") {
+    return <Navigate to="/" />
+  }
 
   useEffect(() => {
-    if (!user || user.role !== "admin") {
-      setShouldNavigate(true)
-      return
-    }
-
     const fetchStats = async () => {
       setIsLoading(true)
       setError(null)
@@ -43,11 +42,7 @@ export const AdminDashboardPage = () => {
     }
 
     fetchStats()
-  }, [user])
-
-  if (shouldNavigate) {
-    return <Navigate to="/" />
-  }
+  }, [])
 
   const StatCard = ({
     title,
