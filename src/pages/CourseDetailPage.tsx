@@ -49,7 +49,7 @@ export const CourseDetailPage = () => {
       setError(null);
       
       try {
-        // Получаем данные курса
+       
         const { data: courseData, error: courseError } = await getCourseById(id);
         
         if (courseError) {
@@ -65,22 +65,21 @@ export const CourseDetailPage = () => {
           return;
         }
         
-        // Получаем тренировку курса
+      
         const { data: workoutData, error: workoutError } = await getCourseWorkout(id);
         
         if (workoutError) {
           console.error('Ошибка при получении тренировки:', workoutError);
-          // Не показываем ошибку, если просто нет тренировки
+      
         }
         
-        // Проверяем, записан ли пользователь на курс
+   
         const { isEnrolled: userEnrolled, error: enrolledError } = await isUserEnrolledInCourse(user.id, id);
         
         if (enrolledError && enrolledError.code !== 'PGRST116') {
           console.error('Ошибка при проверке записи на курс:', enrolledError);
         }
         
-        // Если пользователь записан на курс, получаем его прогресс
         let progressData = null;
         if (userEnrolled) {
           const { data: progress, error: progressError } = await getUserCourseProgress(user.id, id);
@@ -92,11 +91,10 @@ export const CourseDetailPage = () => {
           }
         }
 
-        // Проверяем, добавлен ли курс в избранное
         const { isFavorite: userFavorite } = await isCourseFavorite(user.id, id);
         setIsFavorite(userFavorite);
         
-        // Устанавливаем данные в state
+        /
         setCourse(courseData);
         setWorkout(workoutData);
         setUserProgress(progressData);
@@ -123,7 +121,7 @@ export const CourseDetailPage = () => {
       }
       
       setIsEnrolled(true);
-      // Обновляем данные о прогрессе
+   
       const { data, error: progressError } = await getUserCourseProgress(user.id, id);
       if (progressError && progressError.code !== 'PGRST116') {
         console.error('Ошибка при получении прогресса:', progressError);
@@ -135,7 +133,7 @@ export const CourseDetailPage = () => {
     }
   };
 
-  // Функция для добавления/удаления курса из избранного
+  // 
   const handleToggleFavorite = async () => {
     if (!user || !id) return;
 
@@ -151,8 +149,7 @@ export const CourseDetailPage = () => {
       console.error('Ошибка при изменении статуса избранного:', error);
     }
   };
-  
-  // Функция для отображения уровня сложности на русском
+
   const getLevelName = (level: string) => {
     switch (level) {
       case 'beginner':
@@ -166,7 +163,6 @@ export const CourseDetailPage = () => {
     }
   };
   
-  // Функция для отображения цвета уровня сложности
   const getLevelColor = (level: string) => {
     switch (level) {
       case 'beginner':
@@ -270,7 +266,7 @@ export const CourseDetailPage = () => {
         
         {/* Основной контент */}
         <div className="flex-1 bg-gray-50 px-4 pt-6 pb-24">
-          {/* Кнопка записаться/продолжить */}
+          {/* Кнопк�� записаться/продолжить */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
