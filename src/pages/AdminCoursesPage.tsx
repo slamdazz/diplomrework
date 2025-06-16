@@ -1,16 +1,16 @@
 "use client"
 
+import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Layout } from "../components/layout/Layout"
-import { Button } from "../components/ui/Button"
-import { Input } from "../components/ui/Input"
-import { Search, Filter, Plus, Edit, Trash2, Eye } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Search, Filter, Plus, Edit, Trash2, Eye, BookOpen } from "lucide-react"
 import type { Course } from "../types"
 import { useAuthStore } from "../store/authStore"
 import { Navigate, Link } from "react-router-dom"
-import { getCourses } from "../lib/supabase"
-import { CourseModal } from "../components/admin/CourseModal"
-import { deleteCourse } from "../lib/supabase"
+import { getCourses, deleteCourse, createCourse, updateCourse } from "../lib/supabase"
 
 export const AdminCoursesPage = () => {
   const { user } = useAuthStore()
@@ -18,24 +18,15 @@ export const AdminCoursesPage = () => {
   const [filteredCourses, setFilteredCourses] = useState<Course[]>([])
   const [searchTerm, setSearchTerm] = useState("")
   const [filterLevel, setFilterLevel] = useState<string>("")
-  const [filterStatus, setFilterStatus] = useState<string>("")
   const [isLoading, setIsLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showModal, setShowModal] = useState(false)
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null)
-  const [isAdmin, setIsAdmin] = useState(false)
 
-  useEffect(() => {
-    if (user && user.role === "admin") {
-      setIsAdmin(true)
-    } else {
-      setIsAdmin(false)
-    }
-  }, [user])
-
-  if (!isAdmin) {
+  // Проверяем права доступа
+  if (!user || user.role !== "admin") {
     return <Navigate to="/" />
   }
 
@@ -74,14 +65,11 @@ export const AdminCoursesPage = () => {
       // Фильтр по уровню сложности
       const matchesLevel = filterLevel === "" || course.level === filterLevel
 
-      // Фильтр по статусу (все курсы активны в демо)
-      const matchesStatus = filterStatus === "" || (course.is_active && filterStatus === "published")
-
-      return matchesSearch && matchesLevel && matchesStatus
+      return matchesSearch && matchesLevel
     })
 
     setFilteredCourses(filtered)
-  }, [courses, searchTerm, filterLevel, filterStatus])
+  }, [courses, searchTerm, filterLevel])
 
   // Форматирование даты создания
   const formatDate = (dateString: string) => {
@@ -214,19 +202,6 @@ export const AdminCoursesPage = () => {
                     <option value="advanced">Продвинутый</option>
                   </select>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Статус</label>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
-                  >
-                    <option value="">Все статусы</option>
-                    <option value="published">Опубликованные</option>
-                    <option value="draft">Черновики</option>
-                  </select>
-                </div>
               </div>
 
               <div className="mt-4 flex justify-end">
@@ -235,7 +210,6 @@ export const AdminCoursesPage = () => {
                   size="sm"
                   onClick={() => {
                     setFilterLevel("")
-                    setFilterStatus("")
                   }}
                   className="mr-2"
                 >
@@ -256,22 +230,10 @@ export const AdminCoursesPage = () => {
           </div>
         ) : filteredCourses.length === 0 ? (
           <div className="text-center py-8 bg-white rounded-lg shadow-sm border border-gray-100">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="h-12 w-12 mx-auto text-gray-400 mb-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={1.5}
-                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-              />
-            </svg>
+            <BookOpen size={48} className="mx-auto text-gray-300 mb-4" />
             <h3 className="text-xl font-medium text-gray-900 mb-2">Курсы не найдены</h3>
-            <p className="text-gray-600 mb-6">Попробуйте изменить параметры поиска или фильтры</p>
+            <p className="text-gray-600 mb-6">Попробуйте изменить параметры поиска или создайте новый курс</p>
+            <Button onClick={handleCreateCourse}>Создать первый курс</Button>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow-sm border border-gray-100 overflow-hidden">
@@ -279,40 +241,19 @@ export const AdminCoursesPage = () => {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Курс
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Уровень
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Продолжительность
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Дата создания
                     </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
-                      Статус
-                    </th>
-                    <th
-                      scope="col"
-                      className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider"
-                    >
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Действия
                     </th>
                   </tr>
@@ -325,7 +266,7 @@ export const AdminCoursesPage = () => {
                           <div className="flex-shrink-0 h-10 w-10">
                             <img
                               className="h-10 w-10 rounded-md object-cover"
-                              src={course.image_url || "/placeholder.svg"}
+                              src={course.image_url || "/placeholder.svg?height=40&width=40"}
                               alt=""
                             />
                           </div>
@@ -345,11 +286,6 @@ export const AdminCoursesPage = () => {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{course.duration} дней</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(course.created_at)}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                          {course.is_active ? "Опубликован" : "Черновик"}
-                        </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                         <div className="flex justify-end items-center space-x-2">
@@ -381,84 +317,21 @@ export const AdminCoursesPage = () => {
                 </tbody>
               </table>
             </div>
-
-            <div className="bg-gray-50 px-4 py-3 flex items-center justify-between sm:px-6">
-              <div className="flex-1 flex justify-between sm:hidden">
-                <Button variant="outline" size="sm">
-                  Назад
-                </Button>
-                <Button variant="outline" size="sm">
-                  Вперед
-                </Button>
-              </div>
-              <div className="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm text-gray-700">
-                    Показано <span className="font-medium">1</span> -{" "}
-                    <span className="font-medium">{filteredCourses.length}</span> из{" "}
-                    <span className="font-medium">{courses.length}</span> курсов
-                  </p>
-                </div>
-                <div>
-                  <nav className="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">
-                    <a
-                      href="#"
-                      className="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                    >
-                      <span className="sr-only">Предыдущая</span>
-                      <svg
-                        className="h-5 w-5"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </a>
-                    <a
-                      href="#"
-                      className="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50"
-                    >
-                      1
-                    </a>
-                    <a
-                      href="#"
-                      className="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"
-                    >
-                      <span className="sr-only">Следующая</span>
-                      <svg
-                        className="h-5 w-5"
-                        xmlns="http://www.w3.org/2000/svg"
-                        viewBox="0 0 20 20"
-                        fill="currentColor"
-                        aria-hidden="true"
-                      >
-                        <path
-                          fillRule="evenodd"
-                          d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z"
-                          clipRule="evenodd"
-                        />
-                      </svg>
-                    </a>
-                  </nav>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </div>
-      <CourseModal
-        isOpen={showModal}
-        onClose={() => setShowModal(false)}
-        onSuccess={handleModalSuccess}
-        course={selectedCourse}
-      />
 
+      {/* Модальное окно создания/редактирования курса */}
+      {showModal && (
+        <CourseModal
+          isOpen={showModal}
+          onClose={() => setShowModal(false)}
+          onSuccess={handleModalSuccess}
+          course={selectedCourse}
+        />
+      )}
+
+      {/* Подтверждение удаления */}
       {showDeleteConfirm && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
@@ -478,5 +351,176 @@ export const AdminCoursesPage = () => {
         </div>
       )}
     </Layout>
+  )
+}
+
+// Компонент модального окна для создания/редактирования курсов
+const CourseModal = ({
+  isOpen,
+  onClose,
+  onSuccess,
+  course,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  course?: Course | null
+}) => {
+  const [formData, setFormData] = useState({
+    title: "",
+    description: "",
+    image_url: "",
+    level: "beginner" as "beginner" | "intermediate" | "advanced",
+    duration: 30,
+    is_active: true,
+  })
+  const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const isEditing = !!course
+
+  useEffect(() => {
+    if (course) {
+      setFormData({
+        title: course.title,
+        description: course.description,
+        image_url: course.image_url,
+        level: course.level,
+        duration: course.duration,
+        is_active: course.is_active ?? true,
+      })
+    } else {
+      setFormData({
+        title: "",
+        description: "",
+        image_url: "",
+        level: "beginner",
+        duration: 30,
+        is_active: true,
+      })
+    }
+    setError(null)
+  }, [course, isOpen])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      if (isEditing && course) {
+        const { error } = await updateCourse(course.id, formData)
+        if (error) throw error
+      } else {
+        const { error } = await createCourse(formData)
+        if (error) throw error
+      }
+
+      onSuccess()
+      onClose()
+    } catch (err: any) {
+      setError(err.message || "Произошла ошибка при сохранении курса")
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-bold">{isEditing ? "Редактировать курс" : "Создать курс"}</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            ✕
+          </button>
+        </div>
+
+        {error && <div className="mb-4 p-3 bg-red-50 text-red-700 rounded-md text-sm">{error}</div>}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Название курса</label>
+            <Input
+              type="text"
+              value={formData.title}
+              onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+              required
+              placeholder="Введите название курса"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Описание</label>
+            <textarea
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              required
+              rows={3}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              placeholder="Введите описание курса"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">URL изображения</label>
+            <Input
+              type="url"
+              value={formData.image_url}
+              onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
+              required
+              placeholder="https://example.com/image.jpg"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Уровень сложности</label>
+            <select
+              value={formData.level}
+              onChange={(e) => setFormData({ ...formData, level: e.target.value as any })}
+              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            >
+              <option value="beginner">Начинающий</option>
+              <option value="intermediate">Средний</option>
+              <option value="advanced">Продвинутый</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Продолжительность (дни)</label>
+            <Input
+              type="number"
+              min="1"
+              value={formData.duration}
+              onChange={(e) => setFormData({ ...formData, duration: Number.parseInt(e.target.value) })}
+              required
+            />
+          </div>
+
+          <div className="flex items-center">
+            <input
+              type="checkbox"
+              id="is_active"
+              checked={formData.is_active}
+              onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
+              className="rounded border-gray-300 text-blue-600 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+            />
+            <label htmlFor="is_active" className="ml-2 text-sm text-gray-700">
+              Активный курс
+            </label>
+          </div>
+
+          <div className="flex justify-end space-x-3 pt-4">
+            <Button type="button" variant="outline" onClick={onClose} disabled={isLoading}>
+              Отмена
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? "Сохранение..." : isEditing ? "Сохранить" : "Создать"}
+            </Button>
+          </div>
+        </form>
+      </div>
+    </div>
   )
 }
